@@ -1,8 +1,10 @@
 # Hardware self-test for the Fri3d Camp 2026 badge.
-# Single-screen (320x240) PASS / WARN / FAIL report.
+# Shows a ~1 s startup splash (version / author / makerspace), then the
+# single-screen (320x240) PASS / WARN / FAIL report.
 # Live inputs: A/B/X/Y + START(S) buttons, joystick, screen tap, IR receiver,
 # and microSD (insert/remove at any time).
 # Each button push colour-cycles its NeoPixel (5 buttons <-> 5 LEDs).
+import json
 import lvgl as lv
 import mpos
 import machine
@@ -15,6 +17,9 @@ C_PASS = lv.color_hex(0x2DD36B)
 C_FAIL = lv.color_hex(0xF4534A)
 C_WARN = lv.color_hex(0xFFB300)
 C_WAIT = lv.color_hex(0x9E9E9E)
+
+FULLNAME = 'org.fri3d.hwtest'
+SPLASH_MS = 1000   # how long the startup splash is shown
 
 # face buttons read from mpos.io_expander.digital:
 # (usb_plugged, joy_R, joy_L, joy_D, joy_U, MENU, B, A, Y, X, charger_stdby, charger_chg)
@@ -41,6 +46,19 @@ CELLS = (
 
 # keys whose PASS is required for the "all good" summary
 REQUIRED = ('disp', 'exp', 'touch', 'led', 'batt', 'imu', 'btn', 'joy')
+
+
+def _read_version():
+    """Read this app's version from its MANIFEST.JSON ('?' if not found)."""
+    for base in ('/apps', '/builtin/apps'):
+        try:
+            f = open(base + '/' + FULLNAME + '/MANIFEST.JSON')
+            v = json.load(f).get('version', '?')
+            f.close()
+            return v
+        except Exception:
+            pass
+    return '?'
 
 
 def _joy_arrow(jx, jy):
@@ -72,8 +90,43 @@ class HwTest(Activity):
         self._ir_isr = None       # keeps the closure alive
         self._ir_ok = False
         self._sd_tick = 0
-        self._task = None
+        self._task = None         # the live-update asyncio task
+        self._entered = False     # has the self-test screen been shown?
+        self._splash_task = None  # the splash->test timer task
+        self.scr = None           # the self-test screen (built later)
+        self.hint = None
+        self._build_splash()
 
+    # ---- splash / startup screen ----
+    def _build_splash(self):
+        sp = lv.obj()
+        sp.set_style_pad_all(0, 0)
+        sp.set_style_bg_color(lv.color_hex(0x141419), 0)
+        sp.remove_flag(lv.obj.FLAG.SCROLLABLE)
+
+        t = lv.label(sp)
+        t.set_text('Hardware Self-Test')
+        t.align(lv.ALIGN.TOP_MID, 0, 40)
+        t.set_style_text_color(lv.color_hex(0xE6E6E6), 0)
+
+        ver = lv.label(sp)
+        ver.set_text('v' + _read_version())
+        ver.align(lv.ALIGN.TOP_MID, 0, 66)
+        ver.set_style_text_color(C_WAIT, 0)
+
+        who = lv.label(sp)
+        who.set_text('David Steeman')
+        who.align(lv.ALIGN.CENTER, 0, -6)
+        who.set_style_text_color(lv.color_hex(0xFFFFFF), 0)
+
+        org = lv.label(sp)
+        org.set_text('Makerspace Baasrode')
+        org.align(lv.ALIGN.CENTER, 0, 20)
+        org.set_style_text_color(C_PASS, 0)
+
+        self.setContentView(sp)
+
+    def _build_test(self):
         scr = lv.obj()
         scr.set_style_pad_all(2, 0)
         scr.set_style_bg_color(lv.color_hex(0x141419), 0)
@@ -123,9 +176,27 @@ class HwTest(Activity):
         self.hint.set_style_text_align(lv.TEXT_ALIGN.CENTER, 0)
         self.hint.set_style_text_color(C_WAIT, 0)
         self.hint.set_text('Tap - A/B/X/Y/S - stick - point IR remote')
+        self.scr = scr
 
-        self.setContentView(scr)
+    def _enter_test(self):
+        if self._entered:
+            return
+        self._entered = True
+        self._build_test()
+        self.setContentView(self.scr)
+        self.run_static_checks()
         self._render_leds()
+        self._enable_ir()
+        if self._task is not None:
+            try:
+                self._task.cancel()
+            except Exception:
+                pass
+        self._task = TaskManager.create_task(self._loop())
+
+    async def _splash_then_enter(self):
+        await TaskManager.sleep_ms(SPLASH_MS)
+        self._enter_test()
 
     # ---- NeoPixel colour cycle (5 buttons <-> 5 LEDs) ----
     def _render_leds(self):
@@ -377,17 +448,23 @@ class HwTest(Activity):
 
     def onResume(self, screen):
         super().onResume(screen)
-        self.run_static_checks()
-        self._render_leds()
-        self._enable_ir()
-        if self._task is not None:
-            try:
-                self._task.cancel()
-            except Exception:
-                pass
-        self._task = TaskManager.create_task(self._loop())
+        if not self._entered:
+            # first start: show the splash, then switch to the self-test
+            if self._splash_task is None:
+                self._splash_task = TaskManager.create_task(self._splash_then_enter())
+        else:
+            # returning to an already-started test: just resume polling
+            self._enable_ir()
+            if self._task is None:
+                self._task = TaskManager.create_task(self._loop())
 
     def onPause(self, screen):
+        if self._splash_task is not None:
+            try:
+                self._splash_task.cancel()
+            except Exception:
+                pass
+            self._splash_task = None
         if self._task is not None:
             try:
                 self._task.cancel()
