@@ -1,0 +1,16 @@
+{
+  "name": "HW Test",
+  "publisher": "fri3d",
+  "short_description": "Hardware self-test",
+  "long_description": "Tests display, IO expander, touch, NeoPixels, battery, IMU, buttons, joystick, SD, LoRa, audio and IR. Shows PASS/WARN/FAIL. Hold A/B/X/Y, move the stick and tap the screen to test inputs.",
+  "fullname": "org.fri3d.hwtest",
+  "version": "0.1.0",
+  "category": "development",
+  "activities": [
+    {
+      "entrypoint": "hwtest.py",
+      "classname": "HwTest",
+      "intent_filters": [ { "action": "main", "category": "launcher" } ]
+    }
+  ]
+}
