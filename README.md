@@ -7,7 +7,8 @@ Authored by **David Steeman** — **Makerspace Baasrode**.
 
 ## What it does
 
-Shows a 6×2 grid (320×240) with a **PASS / WARN / FAIL** status for each subsystem,
+On launch it shows a **~1 second splash** (app version, *David Steeman*, *Makerspace
+Baasrode*), then the test screen: a 6×2 grid (320×240) with a **PASS / WARN / FAIL** status for each subsystem,
 re-checked live. Inputs are tested interactively: tap the screen, press the buttons,
 wiggle the joystick, point an IR remote at the receiver, and insert/remove the SD card.
 Each of the 5 buttons colour-cycles its own NeoPixel (5 buttons ↔ 5 LEDs).
