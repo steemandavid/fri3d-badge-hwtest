@@ -1,2 +1,5 @@
 # local system customizations (not part of the hwtest app)
 _launcher_override/
+
+# release build artifacts
+*.mpk

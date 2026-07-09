@@ -61,6 +61,18 @@ def _read_version():
     return '?'
 
 
+def _asset_bytes(name):
+    """Read a binary asset from this app's folder (or builtin), or None."""
+    for base in ('/apps', '/builtin/apps'):
+        try:
+            f = open(base + '/' + FULLNAME + '/' + name, 'rb')
+            d = f.read(); f.close()
+            return d
+        except Exception:
+            pass
+    return None
+
+
 def _joy_arrow(jx, jy):
     dx, dy = jx - 2048, 2048 - jy
     if abs(dx) < 400 and abs(dy) < 400:
@@ -116,12 +128,18 @@ class HwTest(Activity):
         ver.align(lv.ALIGN.TOP_MID, 0, 70)
         ver.set_style_text_color(C_WAIT, 0)
 
-        # Makerspace Baasrode logo (bottom). Placeholder text until a logo image
-        # is supplied -- swap for an lv.image() of the logo PNG.
-        org = lv.label(sp)
-        org.set_text('Makerspace Baasrode')
-        org.align(lv.ALIGN.BOTTOM_MID, 0, -28)
-        org.set_style_text_color(C_PASS, 0)
+        # Makerspace Baasrode logo (bottom) -- makerspace.png asset (white tile
+        # + black logo, rounded corners). Text fallback if the asset is missing.
+        logo = _asset_bytes('makerspace.png')
+        if logo:
+            li = lv.image(sp)
+            li.set_src(lv.image_dsc_t({'data_size': len(logo), 'data': logo}))
+            li.align(lv.ALIGN.CENTER, 0, 30)
+        else:
+            org = lv.label(sp)
+            org.set_text('Makerspace Baasrode')
+            org.align(lv.ALIGN.BOTTOM_MID, 0, -28)
+            org.set_style_text_color(C_PASS, 0)
 
         self.setContentView(sp)
 
