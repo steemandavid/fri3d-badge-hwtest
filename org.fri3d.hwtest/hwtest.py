@@ -104,24 +104,23 @@ class HwTest(Activity):
         sp.set_style_bg_color(lv.color_hex(0x141419), 0)
         sp.remove_flag(lv.obj.FLAG.SCROLLABLE)
 
-        t = lv.label(sp)
-        t.set_text('Hardware Self-Test')
-        t.align(lv.ALIGN.TOP_MID, 0, 40)
-        t.set_style_text_color(lv.color_hex(0xE6E6E6), 0)
-
-        ver = lv.label(sp)
-        ver.set_text('v' + _read_version())
-        ver.align(lv.ALIGN.TOP_MID, 0, 66)
-        ver.set_style_text_color(C_WAIT, 0)
-
+        # David Steeman (top)
         who = lv.label(sp)
         who.set_text('David Steeman')
-        who.align(lv.ALIGN.CENTER, 0, -6)
+        who.align(lv.ALIGN.TOP_MID, 0, 44)
         who.set_style_text_color(lv.color_hex(0xFFFFFF), 0)
 
+        # app version (below the name)
+        ver = lv.label(sp)
+        ver.set_text('v' + _read_version())
+        ver.align(lv.ALIGN.TOP_MID, 0, 70)
+        ver.set_style_text_color(C_WAIT, 0)
+
+        # Makerspace Baasrode logo (bottom). Placeholder text until a logo image
+        # is supplied -- swap for an lv.image() of the logo PNG.
         org = lv.label(sp)
         org.set_text('Makerspace Baasrode')
-        org.align(lv.ALIGN.CENTER, 0, 20)
+        org.align(lv.ALIGN.BOTTOM_MID, 0, -28)
         org.set_style_text_color(C_PASS, 0)
 
         self.setContentView(sp)
@@ -321,10 +320,20 @@ class HwTest(Activity):
             if sx is None:
                 self.set_status('lora', 'none', C_WARN); self.ok['lora'] = False
             else:
-                sx.begin()  # set LoRa mode (wakes/init the radio; no TX/RX)
+                try:
+                    sx.standby()
+                except Exception:
+                    pass
+                try:
+                    sx.begin()  # set LoRa mode (no TX/RX); ignored if chip is in a
+                                # bad state (ERR_WRONG_MODEM) -- we still read below
+                except Exception:
+                    pass
                 pt = sx.getPacketType()
-                if pt in (0, 1):
-                    self.set_status('lora', 'LoRa' if pt == 1 else 'FSK', C_PASS); self.ok['lora'] = True
+                if pt == 1:
+                    self.set_status('lora', 'LoRa', C_PASS); self.ok['lora'] = True
+                elif pt == 0:
+                    self.set_status('lora', 'FSK', C_PASS); self.ok['lora'] = True
                 else:
                     self.set_status('lora', 'no rsp', C_WARN); self.ok['lora'] = False
         except Exception:
